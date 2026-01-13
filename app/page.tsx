@@ -5,10 +5,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
+type AnalyzeResult =
+  | {
+      owner: string;
+      repo: string;
+      branch: string;
+      fileCount: number;
+      files: string[];
+    }
+  | { error: string }
+  | null;
+
 export default function Home() {
   const [repoUrl, setRepoUrl] = useState("");
   const [change, setChange] = useState("");
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState<AnalyzeResult>(null);
   const [loading, setLoading] = useState(false);
 
   async function analyze() {
@@ -25,7 +36,11 @@ export default function Home() {
     });
 
     const data = await res.json();
-    setResult(data);
+    if (!res.ok) {
+      setResult({ error: data.error });
+    } else {
+      setResult(data);
+    }
     setLoading(false);
   }
 
