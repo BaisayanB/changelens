@@ -8,7 +8,7 @@ export type Hypothesis = {
 };
 
 export type HypothesisResponse = {
-  tech_stack_identified: string;
+  tech_stack: string;
   hypotheses: Hypothesis[];
 };
 
@@ -20,7 +20,7 @@ export async function generateHypotheses(input: {
 
   if (files.length === 0) {
     return {
-      tech_stack_identified: "unknown",
+      tech_stack: "unknown",
       hypotheses: [],
     };
   }
@@ -28,7 +28,7 @@ export async function generateHypotheses(input: {
   const model = gemini.getGenerativeModel({
     model: "gemini-3-pro-preview",
     generationConfig: {
-      temperature: 0.2,
+      temperature: 0.1,
       responseMimeType: "application/json",
     },
   });
@@ -61,7 +61,7 @@ Before generating hypotheses, consider the likely tech stack or framework being 
 ### OUTPUT FORMAT
 Return STRICT JSON ONLY in this format.
 {
-  "tech_stack_identified": "string",
+  "tech_stack": "string",
   "hypotheses": [
     {
       "area": "string",
