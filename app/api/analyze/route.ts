@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { parseRepoUrl } from "@/lib/github/parseRepo";
 import { fetchRepoTree } from "@/lib/github/fetchTree";
+import { generateHypotheses } from "@/lib/agent/Hypothesis";
+import { verifyHypothesis } from "@/lib/agent/Verifier";
 
 export async function POST(req: Request) {
   try {
@@ -13,18 +15,41 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
     const { owner, repo, branch } = parseRepoUrl(repoUrl);
-    const files = await fetchRepoTree({ owner, repo, branch });
+    const allFiles = await fetchRepoTree({ owner, repo, branch });
+    const analysis = await generateHypotheses({
+      files: allFiles,
+      changeRequest,
+    });
+    const verificationResults = await Promise.all(
+      analysis.hypotheses.map((hypothesis) =>
+        verifyHypothesis({
+          hypothesis,
+          techStack: analysis.techStack,
+          owner,
+          repo,
+          branch,
+          changeRequest,
+          allFiles,
+        })
+      )
+    );
 
     return NextResponse.json({
-      owner,
-      repo,
+      repo: `${owner}/${repo}`,
       branch,
-      fileCount: files.length,
-      files,
+      techStack: analysis.techStack,
+      change_request: changeRequest,
+      hypotheses: analysis.hypotheses,
+      verifications: verificationResults,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: err instanceof Error ? err.message : "Unknown server error",
+      },
+      { status: 500 }
+    );
   }
 }

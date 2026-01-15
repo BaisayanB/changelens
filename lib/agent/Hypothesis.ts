@@ -8,7 +8,7 @@ export type Hypothesis = {
 };
 
 export type HypothesisResponse = {
-  tech_stack: string;
+  techStack: string;
   hypotheses: Hypothesis[];
 };
 
@@ -20,7 +20,7 @@ export async function generateHypotheses(input: {
 
   if (files.length === 0) {
     return {
-      tech_stack: "unknown",
+      techStack: "unknown",
       hypotheses: [],
     };
   }
@@ -61,7 +61,7 @@ Before generating hypotheses, consider the likely tech stack or framework being 
 ### OUTPUT FORMAT
 Return STRICT JSON ONLY in this format.
 {
-  "tech_stack": "string",
+  "techStack": "string",
   "hypotheses": [
     {
       "area": "string",

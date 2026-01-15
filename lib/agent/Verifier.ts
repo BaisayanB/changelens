@@ -91,7 +91,7 @@ Using the evidence provided below:
 - If key evidence is missing, state that uncertainty explicitly
 - Prefer correctness and explainability over completeness
 
-### OUTPUT FORMAT (STRICT JSON)
+### OUTPUT FORMAT (STRICT JSON ONLY)
 {
   "area": "${hypothesis.area}",
   "confirmedFiles": ["string"],
