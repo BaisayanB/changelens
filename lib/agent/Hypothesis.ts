@@ -27,7 +27,7 @@ export async function generateHypotheses(input: {
   }
 
   const model = gemini.getGenerativeModel({
-    model: "gemini-3-flash-preview",
+    model: "gemini-2.5-flash",
     generationConfig: {
       temperature: 0.1,
       responseMimeType: "application/json",
@@ -42,10 +42,14 @@ You are a Senior Software Architect specializing in code impact analysis. Your g
 2. <file_paths>: A capped list of file paths from the repository. The list may be incomplete or misleading. Do NOT assume completeness.
 
 ### YOUR MISSION
-Analyze the file tree to generate hypotheses about which areas of codebase might be impacted by the requested change. You do NOT have file contents yet, so you must rely on file naming conventions, directory structures, and industry-standard patterns.
+Analyze the file tree to generate hypotheses about which areas of codebase might be impacted by the requested change.
+You do NOT have file contents yet, so you must rely on file naming conventions, directory structures, and clearly observable framework patterns.
 
 ### INTERNAL REASONING (do not output)
-Before generating hypotheses, consider the likely tech stack or framework being used, locate probable entry points or boundaries to identify core logic and how the change request might propagate across layers
+Before generating hypotheses, identify:
+- the primary framework or runtime (if evident)
+- likely architectural layers
+- how the requested change could propagate structurally
 
 ### RULES
 - Group files by logical "Impact Areas"
@@ -55,12 +59,13 @@ Before generating hypotheses, consider the likely tech stack or framework being 
 - If no meaningful connection exists, return an empty hypotheses array rather than forcing speculative groupings
 
 ### CONFIDENCE GUIDELINES
-- "high": Strong structural or semantic alignment with the request
-- "medium": Reasonable architectural likelihood
-- "low": Indirect or speculative relationship
+- "high": File names or directories directly match the change request
+- "medium": Strong structural likelihood based on project layout
+- "low": Indirect or speculative relationship (use sparingly)
 
 ### OUTPUT FORMAT
-Return STRICT JSON ONLY in this format.
+
+Return STRICT JSON ONLY in this format. No trailing text or explanations.
 {
   "techStack": "string",
   "hypotheses": [

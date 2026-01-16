@@ -12,13 +12,26 @@ type Hypothesis = {
   confidence: "low" | "medium" | "high";
 };
 
+type VerificationResult = {
+  area: string;
+  confirmedFiles: string[];
+  rejectedFiles: string[];
+  newlyDiscoveredFiles: string[];
+  reasoning: string;
+};
+
 type AnalyzeResult =
   | {
       repo: string;
       branch: string;
       techStack: string;
       fileCount: number;
-      hypotheses: Hypothesis[];
+      agent1: {
+        hypotheses: Hypothesis[];
+      };
+      agent2: {
+        verifications: VerificationResult[];
+      };
     }
   | { error: string }
   | null;
@@ -43,11 +56,7 @@ export default function Home() {
     });
 
     const data = await res.json();
-    if (!res.ok) {
-      setResult({ error: data.error });
-    } else {
-      setResult(data);
-    }
+    setResult(res.ok ? data : { error: data.error });
     setLoading(false);
   }
 
@@ -87,8 +96,9 @@ export default function Home() {
           </div>
         )}
 
-        {result && "hypotheses" in result && (
-          <div className="space-y-6">
+        {result && "agent1" in result && (
+          <>
+            {/* META */}
             <div className="text-sm text-muted-foreground">
               Repo: {result.repo} · Branch: {result.branch} · Files scanned:{" "}
               {result.fileCount}
@@ -98,37 +108,57 @@ export default function Home() {
               <strong>Detected Tech Stack:</strong> {result.techStack}
             </div>
 
-            {result.hypotheses.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No meaningful impact areas detected.
-              </p>
-            ) : (
-              <ul className="space-y-4">
-                {result.hypotheses.map((h, i) => (
-                  <li key={i} className="rounded-md bg-muted p-4 space-y-2">
-                    <div className="font-semibold">
-                      {h.area}{" "}
-                      <span className="text-xs text-muted-foreground">
-                        ({h.confidence})
-                      </span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {h.reasoning}
-                    </div>
-                    <ul className="list-disc pl-5 text-xs">
-                      {h.likelyFiles.map((f) => (
-                        <li key={f} className="font-mono">
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+            {/* AGENT 1 */}
+            <section className="space-y-4">
+              <h2 className="text-lg font-semibold">Agent 1 — Hypotheses</h2>
+
+              {result.agent1.hypotheses.map((h, i) => (
+                <div key={i} className="rounded-md bg-muted p-4 space-y-2">
+                  <div className="font-semibold">
+                    {h.area}{" "}
+                    <span className="text-xs text-muted-foreground">
+                      ({h.confidence})
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{h.reasoning}</p>
+                  <ul className="list-disc pl-5 text-xs font-mono">
+                    {h.likelyFiles.map((f) => (
+                      <li key={f}>{f}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </section>
+
+            {/* AGENT 2 */}
+            <section className="space-y-4">
+              <h2 className="text-lg font-semibold">Agent 2 — Verification</h2>
+
+              {result.agent2.verifications.map((v, i) => (
+                <div key={i} className="rounded-md border p-4 space-y-3">
+                  <div className="font-semibold">{v.area}</div>
+
+                  <div className="text-xs">
+                    <strong>Confirmed:</strong>{" "}
+                    {v.confirmedFiles.join(", ") || "None"}
+                  </div>
+
+                  <div className="text-xs">
+                    <strong>Rejected:</strong>{" "}
+                    {v.rejectedFiles.join(", ") || "None"}
+                  </div>
+
+                  <div className="text-xs">
+                    <strong>Unverified deps:</strong>{" "}
+                    {v.newlyDiscoveredFiles.join(", ") || "None"}
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">{v.reasoning}</p>
+                </div>
+              ))}
+            </section>
+          </>
         )}
-        
       </div>
     </main>
   );

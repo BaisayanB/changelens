@@ -12,7 +12,7 @@ export type VerificationResult = {
 };
 
 type VerifyInput = {
-  hypothesis: Hypothesis;
+  hypotheses: Hypothesis[];
   techStack: string;
   owner: string;
   repo: string;
@@ -22,16 +22,22 @@ type VerifyInput = {
 };
 
 export async function verifyHypothesis({
-  hypothesis,
+  hypotheses,
   techStack,
   owner,
   repo,
   branch,
   changeRequest,
   allFiles,
-}: VerifyInput): Promise<VerificationResult> {
+}: VerifyInput): Promise<VerificationResult[]> {
+  if (hypotheses.length === 0) return [];
+
+  const uniqueFiles = Array.from(
+    new Set(hypotheses.flatMap((h) => h.likelyFiles))
+  );
+
   const fetchResults = await Promise.all(
-    hypothesis.likelyFiles.map(async (path) => {
+    uniqueFiles.map(async (path) => {
       try {
         const content = await fetchFileContent({ owner, repo, branch, path });
         return { path, content, status: "success" as const };
@@ -47,18 +53,18 @@ export async function verifyHypothesis({
     .map((f) => f.path);
 
   if (successFiles.length === 0) {
-    return {
-      area: hypothesis.area,
+    return hypotheses.map((h) => ({
+      area: h.area,
       confirmedFiles: [],
       rejectedFiles: [],
       newlyDiscoveredFiles: [],
       reasoning:
         "None of the candidate files could be loaded; verification could not be performed.",
-    };
+    }));
   }
 
   const model = gemini.getGenerativeModel({
-    model: "gemini-3-flash-preview",
+    model: "gemini-2.5-flash",
     generationConfig: {
       temperature: 0.1,
       responseMimeType: "application/json",
@@ -66,70 +72,84 @@ export async function verifyHypothesis({
   });
 
   const prompt = `
-You are a Senior Software Architect verifying impact of a proposed code change.
+You are a Senior Software Architect verifying the real impact of a proposed code change.
 
 ### GLOBAL CONTEXT
-- Identified Tech Stack: ${techStack} 
-
-### CONTEXT
-- <change_request>: The feature or modification requested by the user
-- <hypothesis>: A preliminary impact hypothesis that may be incorrect
-- <full_file_tree>: The known file paths in the repository (used to resolve dependencies)
-- <file_contents>: Source code for candidate files suggested by the hypothesis
-- <failed_to_load>: Files that could not be fetched and therefore could not be verified
-
-Your job is to VERIFY the hypothesis using real code.
-
-### YOUR TASK
-Using the evidence provided below:
-- **Confirm** files that clearly require changes based on their code
-- **Reject** files that are not actually relevant
-- **Discover** additional files that MUST be involved, ensuring their paths exist in <full_file_tree>
-
-### RULES
-- Base decisions ONLY on the provided file contents
-- Do NOT assume the existence of files not listed in <full_file_tree>
-- If key evidence is missing, state that uncertainty explicitly
-- Prefer correctness and explainability over completeness
-
-### OUTPUT FORMAT (STRICT JSON ONLY)
-{
-  "area": "${hypothesis.area}",
-  "confirmedFiles": ["string"],
-  "rejectedFiles": ["string"],
-  "newlyDiscoveredFiles": ["string"],
-  "reasoning": "Explain decisions using specific code-level evidence (imports, function names, responsibilities)."
-}
+- Project Tech Stack: ${techStack}
+- Code change requested by user: ${changeRequest}
 
 ### DATA
-<change_request>
-${changeRequest}
-</change_request>
+<hypotheses>
+Each hypothesis below represents a SEPARATE impact area.
+You MUST return exactly ONE verification result per hypothesis, in the SAME ORDER.
 
-<hypothesis>
-Area: ${hypothesis.area}
-Confidence: ${hypothesis.confidence}
-Reasoning: ${hypothesis.reasoning}
-</hypothesis>
+${hypotheses
+  .map(
+    (h, i) => `[${i + 1}] Area: ${h.area}
+Confidence: ${h.confidence}
+Reasoning: ${h.reasoning}
+Candidate Files: ${h.likelyFiles.join("\n")}`
+  )
+  .join("\n\n")}
+</hypotheses>
 
 <failed_to_load>
+These files could not be fetched and therefore cannot be verified:
 ${failedFiles.join("\n")}
 </failed_to_load>
 
 <full_file_tree>
+Authoritative list of valid file paths.
+You may ONLY reference files that appear EXACTLY in this list.
 ${allFiles.slice(0, 300).join("\n")}
 </full_file_tree>
 
 <file_contents>
+Verified source code. Do NOT assume anything about files not shown here.
 ${successFiles.map((f) => `--- FILE: ${f.path} ---\n${f.content}`).join("\n\n")}
 </file_contents>
+
+### YOUR TASK
+For EACH hypothesis:
+1. **Confirm** files that clearly require changes based on their code shown in <file_contents>
+2. **Reject** files that do NOT appear relevant after reading the code
+3. **Discover** additional required files ONLY IF:
+- They are directly referenced via imports, calls, or shared state
+- Their paths exist EXACTLY in <full_file_tree>
+
+### RULES
+- Base decisions ONLY on the provided file contents and do not assume framework conventions
+- Do NOT assume the existence of files not listed in <full_file_tree>
+- If evidence is insufficient, explicitly say so in the reasoning
+- Prefer correctness and explainability over completeness
+- For EVERY hypothesis, you MUST return one result object, if verification is inconclusive, return empty arrays for that hypothesis with reasoning explaining why.
+
+### OUTPUT FORMAT (STRICT JSON ONLY)
+Return EXACTLY this structure:
+{
+  "results" : [
+    {
+      "area": "string",
+      "confirmedFiles": ["string"],
+      "rejectedFiles": ["string"],
+      "newlyDiscoveredFiles": ["string"],
+      "reasoning": "Concrete, code-based explanation. Mention imports, functions, or logic that justify each decision."
+    }
+  ]
+}
 `;
 
   const result = await model.generateContent(prompt);
   const text = result.response.text();
-  try {
-    return extractJson<VerificationResult>(text);
-  } catch {
-    throw new Error("Failed to parse Gemini verification response");
+  const parsed = extractJson<{ results: VerificationResult[] }>(text);
+
+  if (!Array.isArray(parsed.results)) {
+    throw new Error("Verifier returned invalid results structure");
   }
+  if (parsed.results.length !== hypotheses.length) {
+    throw new Error(
+      `Result count mismatch: expected ${hypotheses.length}, got ${parsed.results.length}`
+    );
+  }
+  return parsed.results;
 }
