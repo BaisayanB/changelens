@@ -1,6 +1,7 @@
 import { gemini } from "@/lib/geminiClient";
 import type { HypothesisResponse } from "./Hypothesis";
 import type { VerificationResult } from "./Verifier";
+import { extractJson } from "../extractJson";
 
 export type FinalImpactReport = {
   summary: string;
@@ -22,7 +23,7 @@ export async function consolidateImpact(input: {
   verifications: VerificationResult[];
 }): Promise<FinalImpactReport> {
   const model = gemini.getGenerativeModel({
-    model: "gemini-3-pro-preview",
+    model: "gemini-3-flash-preview",
     generationConfig: {
       temperature: 0.1,
       responseMimeType: "application/json",
@@ -80,10 +81,8 @@ ${JSON.stringify(input.verifications, null, 2)}
 
   const result = await model.generateContent(prompt);
   const text = result.response.text();
-  const cleaned = text.replace(/```json|```/g, "").trim();
-
   try {
-    return JSON.parse(cleaned);
+    return extractJson<FinalImpactReport>(text);
   } catch {
     throw new Error("Failed to parse final impact report");
   }

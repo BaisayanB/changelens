@@ -1,4 +1,5 @@
 import { gemini } from "@/lib/geminiClient";
+import { extractJson } from "../extractJson";
 
 export type Hypothesis = {
   area: string;
@@ -26,7 +27,7 @@ export async function generateHypotheses(input: {
   }
 
   const model = gemini.getGenerativeModel({
-    model: "gemini-3-pro-preview",
+    model: "gemini-3-flash-preview",
     generationConfig: {
       temperature: 0.1,
       responseMimeType: "application/json",
@@ -84,10 +85,8 @@ ${files.join("\n")}
 
   const result = await model.generateContent(prompt);
   const text = result.response.text();
-  const cleaned = text.replace(/```json|```/g, "").trim();
-
   try {
-    return JSON.parse(cleaned);
+    return extractJson<HypothesisResponse>(text);
   } catch {
     throw new Error("Failed to parse Gemini hypothesis response");
   }

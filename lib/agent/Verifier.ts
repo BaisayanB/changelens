@@ -1,6 +1,7 @@
 import { gemini } from "@/lib/geminiClient";
 import { fetchFileContent } from "@/lib/github/fetchFileContent";
 import type { Hypothesis } from "./Hypothesis";
+import { extractJson } from "../extractJson";
 
 export type VerificationResult = {
   area: string;
@@ -57,7 +58,7 @@ export async function verifyHypothesis({
   }
 
   const model = gemini.getGenerativeModel({
-    model: "gemini-3-pro-preview",
+    model: "gemini-3-flash-preview",
     generationConfig: {
       temperature: 0.1,
       responseMimeType: "application/json",
@@ -126,10 +127,8 @@ ${successFiles.map((f) => `--- FILE: ${f.path} ---\n${f.content}`).join("\n\n")}
 
   const result = await model.generateContent(prompt);
   const text = result.response.text();
-  const cleaned = text.replace(/```json|```/g, "").trim();
-
   try {
-    return JSON.parse(cleaned);
+    return extractJson<VerificationResult>(text);
   } catch {
     throw new Error("Failed to parse Gemini verification response");
   }

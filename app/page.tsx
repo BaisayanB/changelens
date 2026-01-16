@@ -5,13 +5,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
+type Hypothesis = {
+  area: string;
+  reasoning: string;
+  likelyFiles: string[];
+  confidence: "low" | "medium" | "high";
+};
+
 type AnalyzeResult =
   | {
-      owner: string;
       repo: string;
       branch: string;
+      techStack: string;
       fileCount: number;
-      files: string[];
+      hypotheses: Hypothesis[];
     }
   | { error: string }
   | null;
@@ -70,15 +77,58 @@ export default function Home() {
           />
 
           <Button onClick={analyze} disabled={loading}>
-            {loading ? "Analyzing…" : "Analyze Impact"}
+            {loading ? "Analyzing…" : "Generate Hypotheses"}
           </Button>
         </div>
 
-        {result && (
-          <pre className="mt-8 rounded-md bg-muted p-4 text-xs overflow-auto">
-            {JSON.stringify(result, null, 2)}
-          </pre>
+        {result && "error" in result && (
+          <div className="mt-8 rounded-md bg-destructive/10 p-4 text-sm text-destructive">
+            {result.error}
+          </div>
         )}
+
+        {result && "hypotheses" in result && (
+          <div className="space-y-6">
+            <div className="text-sm text-muted-foreground">
+              Repo: {result.repo} · Branch: {result.branch} · Files scanned:{" "}
+              {result.fileCount}
+            </div>
+
+            <div className="text-sm">
+              <strong>Detected Tech Stack:</strong> {result.techStack}
+            </div>
+
+            {result.hypotheses.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No meaningful impact areas detected.
+              </p>
+            ) : (
+              <ul className="space-y-4">
+                {result.hypotheses.map((h, i) => (
+                  <li key={i} className="rounded-md bg-muted p-4 space-y-2">
+                    <div className="font-semibold">
+                      {h.area}{" "}
+                      <span className="text-xs text-muted-foreground">
+                        ({h.confidence})
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {h.reasoning}
+                    </div>
+                    <ul className="list-disc pl-5 text-xs">
+                      {h.likelyFiles.map((f) => (
+                        <li key={f} className="font-mono">
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+        
       </div>
     </main>
   );
